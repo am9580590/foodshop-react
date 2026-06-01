@@ -77,7 +77,8 @@ const parseProduct = (item) => {
 // ПРОВАЙДЕР СОСТОЯНИЯ
 // ============================================
 const AppProvider = ({ children }) => {
-  const [data, setData] = useState(MOCK_DATA);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState(new Set());
   const [cart, setCart] = useState([]);
   const [currentTab, setCurrentTab] = useState('menu');
@@ -85,11 +86,24 @@ const AppProvider = ({ children }) => {
   const [selectedSet, setSelectedSet] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Загрузка меню
+  useEffect(() => {
+    fetch('/menu.json')
+      .then(r => r.json())
+      .then(json => {
+        setData(json);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Ошибка загрузки меню:', err);
+        setLoading(false);
+      });
+  }, []);
+
   // Загрузка из localStorage
   useEffect(() => {
     const savedFav = localStorage.getItem('favorites');
     const savedCart = localStorage.getItem('cart');
-    
     if (savedFav) setFavorites(new Set(JSON.parse(savedFav)));
     if (savedCart) setCart(JSON.parse(savedCart));
   }, []);
@@ -103,14 +117,21 @@ const AppProvider = ({ children }) => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
+  // ← ТЕПЕРЬ early return ПОСЛЕ всех хуков
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen text-xl">
+      Загрузка...
+    </div>
+  );
+  if (!data) return (
+    <div className="p-4 text-red-500">Ошибка загрузки данных</div>
+  );
+
   const toggleFavorite = (id) => {
     setFavorites(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
       return newSet;
     });
   };
@@ -119,8 +140,8 @@ const AppProvider = ({ children }) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id);
       if (existing) {
-        return prev.map(i => 
-          i.id === product.id 
+        return prev.map(i =>
+          i.id === product.id
             ? { ...i, quantity: i.quantity + quantity }
             : i
         );
@@ -130,15 +151,15 @@ const AppProvider = ({ children }) => {
   };
 
   const updateCartQuantity = (id, delta) => {
-    setCart(prev => {
-      return prev.map(item => {
+    setCart(prev =>
+      prev.map(item => {
         if (item.id === id) {
           const newQuantity = item.quantity + delta;
           return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
         }
         return item;
-      }).filter(Boolean);
-    });
+      }).filter(Boolean)
+    );
   };
 
   const removeFromCart = (id) => {
@@ -147,7 +168,7 @@ const AppProvider = ({ children }) => {
 
   const getCartTotal = () => {
     return cart.reduce((sum, item) => {
-      const price = item.pricePerUnit 
+      const price = item.pricePerUnit
         ? item.pricePerUnit * item.quantity
         : item.price * item.quantity;
       return sum + price;
